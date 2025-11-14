@@ -1,6 +1,5 @@
 # realtime_emotes.py
-import os, json, time
-from pathlib import Path
+import os, json
 import numpy as np
 import cv2
 import torch
@@ -132,7 +131,6 @@ while True:
                 probs = F.softmax(logits, dim=1).cpu().numpy()[0]
 
             # smooth
-            global probs_smooth
             if probs_smooth is None:
                 probs_smooth = probs
             else:
