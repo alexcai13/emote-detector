@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gesture Labs • Emoji Intelligence</title>
+    <title>Emoji Gesture Detection</title>
     <style>
         *, *::before, *::after {
             margin: 0;
@@ -17,7 +17,7 @@
             color: #e2e8f0;
             display: flex;
             justify-content: center;
-            padding: 48px 24px 96px;
+            padding: 48px 24px 72px;
         }
         .container {
             width: min(1400px, 100%);
@@ -25,38 +25,13 @@
             flex-direction: column;
             gap: 28px;
         }
-        header {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-        .brand {
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: rgba(226, 232, 240, 0.65);
-            font-size: 0.85rem;
-        }
-        h1 {
-            font-size: clamp(2.6rem, 6vw, 4rem);
-            font-weight: 600;
-            color: #f8fafc;
-        }
-        h1 span {
-            color: #a5b4fc;
-        }
-        .subhead {
-            color: #cbd5f5;
-            font-size: 1.15rem;
-            max-width: 720px;
-            line-height: 1.7;
-        }
         .main-content {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
             gap: 24px;
         }
         .panel {
-            background: rgba(15, 23, 42, 0.7);
+            background: rgba(15, 23, 42, 0.75);
             border-radius: 28px;
             padding: 28px;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -83,7 +58,7 @@
             border-radius: 24px;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            background: linear-gradient(180deg, rgba(15, 23, 42, 0.7), rgba(2, 6, 23, 0.9));
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.95));
         }
         video, #emote-display {
             width: 100%;
@@ -97,23 +72,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: radial-gradient(circle at top, rgba(99, 102, 241, 0.4), rgba(15, 23, 42, 0.95));
+            padding: 16px;
+            background: radial-gradient(circle at top, rgba(99, 102, 241, 0.35), rgba(15, 23, 42, 0.95));
         }
         #emote-display img {
-            max-width: 95%;
-            max-height: 95%;
+            width: 100%;
+            height: 100%;
             object-fit: contain;
             filter: drop-shadow(0 25px 45px rgba(0, 0, 0, 0.55));
-        }
-        .status {
-            position: absolute;
-            top: 14px;
-            left: 14px;
-            padding: 10px 18px;
-            border-radius: 999px;
-            font-size: 0.82rem;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .detection-label {
             position: absolute;
@@ -183,23 +149,45 @@
             background: linear-gradient(135deg, #60a5fa, #a855f7);
             transition: width 0.2s ease-out;
         }
-        .info {
-            background: rgba(15, 23, 42, 0.7);
-            border-radius: 24px;
-            padding: 28px;
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.65);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-backdrop.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-card {
+            background: rgba(15, 23, 42, 0.92);
+            border-radius: 28px;
+            padding: 32px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 25px 55px rgba(2, 6, 23, 0.65);
-            line-height: 1.7;
+            box-shadow: 0 35px 75px rgba(2, 6, 23, 0.85);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
-        .info h3 {
-            text-transform: uppercase;
-            letter-spacing: 0.3em;
-            font-size: 0.8rem;
-            color: rgba(148, 163, 184, 0.85);
-            margin-bottom: 12px;
+        .modal-card h3 {
+            font-size: 1.5rem;
         }
-        .info p {
-            color: #cbd5f5;
+        .modal-card p {
+            color: rgba(203, 213, 225, 0.85);
+            line-height: 1.6;
+        }
+        .modal-card button {
+            width: 100%;
         }
         @media (max-width: 768px) {
             body {
@@ -216,22 +204,13 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <div class="brand">Gesture Labs</div>
-            <h1>Bring <span>emoji intelligence</span> to every gesture.</h1>
-            <p class="subhead">
-                Lightning-fast, privacy-first inference powered by ONNX Runtime Web. Train on desktop, deploy to any static host, and stream immersive feedback instantly.
-            </p>
-        </header>
-
         <div class="main-content">
             <div class="panel">
                 <h2>Live Feed</h2>
                 <div class="panel-title">Camera View</div>
                 <div id="video-container">
                     <video id="webcam" autoplay playsinline></video>
-                    <div class="status" id="status">Loading model…</div>
-                    <div class="detection-label" id="detection">Awaiting signal</div>
+                    <div class="detection-label" id="detection">Awaiting camera</div>
                 </div>
             </div>
 
@@ -255,25 +234,28 @@
         </div>
 
         <div class="controls">
-            <button id="startBtn" onclick="startCamera()">Start Camera</button>
+            <button id="startBtn" onclick="startCamera(false)">Start Camera</button>
             <button id="stopBtn" onclick="stopCamera()" disabled>Stop Camera</button>
         </div>
+    </div>
 
-        <div class="info">
-            <h3>Deploy in seconds</h3>
-            <p>
-                1) Train + export with <code>python3 export_onnx.py</code>. 2) Host this repo (GitHub Pages/Netlify). 3) Click <em>Start Camera</em>. Everything runs locally in the browser—no backend, no latency, just your gestures mapped to emojis.
-            </p>
+    <div class="modal-backdrop visible" id="startModal" aria-hidden="false">
+        <div class="modal-card">
+            <h3>Ready to emote?</h3>
+            <p id="modalMessage">Click start to enable your webcam and run the model directly in your browser.</p>
+            <button id="modalStartBtn">Start Camera</button>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
     <script>
         const video = document.getElementById('webcam');
-        const statusDiv = document.getElementById('status');
         const detectionDiv = document.getElementById('detection');
         const emoteDisplay = document.getElementById('emote-display');
         const probabilityList = document.getElementById('probability-list');
+        const startModal = document.getElementById('startModal');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalStartBtn = document.getElementById('modalStartBtn');
 
         const appState = {
             stream: null,
@@ -289,14 +271,21 @@
         };
         appState.ctx = appState.canvas.getContext('2d');
 
+        function hideModal() {
+            startModal.classList.remove('visible');
+            startModal.setAttribute('aria-hidden', 'true');
+        }
+        function showModalMessage(text) {
+            modalMessage.textContent = text;
+        }
+
         async function ensureModelLoaded() {
             if (appState.session) return;
             if (appState.sessionPromise) {
                 await appState.sessionPromise;
                 return;
             }
-            statusDiv.textContent = 'Downloading model…';
-            statusDiv.style.background = 'rgba(14,116,144,0.8)';
+            showModalMessage('Downloading model…');
             const promise = (async () => {
                 const [configRes, emoteRes] = await Promise.all([
                     fetch('models/web_model_config.json'),
@@ -312,23 +301,21 @@
                     executionProviders: ['wasm'],
                     graphOptimizationLevel: 'all'
                 });
-                statusDiv.textContent = 'Model ready • click start';
-                statusDiv.style.background = 'rgba(15,23,42,0.8)';
             })();
             appState.sessionPromise = promise;
             try {
                 await promise;
+                showModalMessage('Ready when you are.');
             } catch (err) {
                 console.error(err);
-                statusDiv.textContent = '❌ ' + err.message;
-                statusDiv.style.background = 'rgba(185,28,28,0.85)';
+                showModalMessage('Error: ' + err.message);
                 throw err;
             } finally {
                 appState.sessionPromise = null;
             }
         }
 
-        async function startCamera() {
+        async function startCamera(fromModal = false) {
             try {
                 await ensureModelLoaded();
                 appState.stream = await navigator.mediaDevices.getUserMedia({
@@ -339,17 +326,22 @@
                     }
                 });
                 video.srcObject = appState.stream;
-                statusDiv.textContent = '✅ Camera active';
-                statusDiv.style.background = 'rgba(22,163,74,0.85)';
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('stopBtn').disabled = false;
-                detectionDiv.textContent = 'Warming up…';
+                detectionDiv.textContent = 'Calibrating…';
                 appState.running = true;
                 runInferenceLoop();
+                hideModal();
             } catch (err) {
                 console.error('Camera error:', err);
-                statusDiv.textContent = '❌ Camera error';
-                statusDiv.style.background = 'rgba(185,28,28,0.85)';
+                detectionDiv.textContent = 'Camera error';
+                if (fromModal) {
+                    showModalMessage('Camera error: ' + err.message);
+                    startModal.classList.add('visible');
+                    startModal.setAttribute('aria-hidden', 'false');
+                } else {
+                    alert('Camera error: ' + err.message);
+                }
             }
         }
 
@@ -364,11 +356,9 @@
                 appState.stream = null;
             }
             video.srcObject = null;
-            statusDiv.textContent = '⏸ Camera paused';
-            statusDiv.style.background = 'rgba(15,23,42,0.8)';
             document.getElementById('startBtn').disabled = false;
             document.getElementById('stopBtn').disabled = true;
-            detectionDiv.textContent = 'No detection';
+            detectionDiv.textContent = 'Camera stopped';
             emoteDisplay.innerHTML = '<span style="color: rgba(226,232,240,0.8);">Camera stopped</span>';
             probabilityList.innerHTML = '<p style="color: rgba(148,163,184,0.8);">Camera stopped.</p>';
         }
@@ -442,8 +432,7 @@
                 const probabilities = softmax(logits);
                 const topIdx = probabilities.indexOf(Math.max(...probabilities));
                 const topLabel = appState.modelConfig.classes[topIdx] || 'unknown';
-                const confidence = (probabilities[topIdx] * 100).toFixed(1);
-                detectionDiv.textContent = `${formatLabel(topLabel)} • ${confidence}%`;
+                detectionDiv.textContent = formatLabel(topLabel);
                 const emotePath = appState.emoteMap[topLabel];
                 if (emotePath) {
                     emoteDisplay.innerHTML = `<img src="${emotePath}" alt="${topLabel}">`;
@@ -453,8 +442,8 @@
                 updateProbabilityList(probabilities, topIdx);
             } catch (err) {
                 console.error('Inference error:', err);
-                statusDiv.textContent = '❌ Inference error (see console)';
-                statusDiv.style.background = 'rgba(185,28,28,0.85)';
+                detectionDiv.textContent = 'Inference error';
+                alert('Inference error: ' + err.message);
                 stopCamera();
                 return;
             }
@@ -462,6 +451,8 @@
                 appState.loopHandle = setTimeout(runInferenceLoop, appState.inferenceIntervalMs);
             }
         }
+
+        modalStartBtn.addEventListener('click', () => startCamera(true));
     </script>
 </body>
 </html>
