@@ -1,0 +1,232 @@
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background: radial-gradient(circle at 20% -10%, #1d4ed8 0%, #0f172a 35%, #030712 100%);
+    min-height: 100vh;
+    color: #e2e8f0;
+    display: flex;
+    justify-content: center;
+    padding: 48px 24px 72px;
+}
+.muted-text {
+    color: rgba(148,163,184,0.8);
+}
+.container {
+    width: min(1400px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+.main-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 24px;
+}
+.panel {
+    background: rgba(15, 23, 42, 0.75);
+    border-radius: 28px;
+    padding: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 25px 55px rgba(2, 6, 23, 0.65);
+    backdrop-filter: blur(18px);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.panel h2 {
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: rgba(148, 163, 184, 0.85);
+    font-size: 0.8rem;
+}
+.panel-title {
+    font-size: 1.6rem;
+    font-weight: 600;
+}
+#video-container, #emote-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 24px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.95));
+}
+video, #emote-display {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+video {
+    transform: scaleX(-1);
+}
+#emote-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: radial-gradient(circle at top, rgba(99, 102, 241, 0.35), rgba(15, 23, 42, 0.95));
+}
+#emote-display span {
+    color: rgba(226,232,240,0.8);
+}
+#emote-display img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    filter: drop-shadow(0 25px 45px rgba(0, 0, 0, 0.55));
+}
+.detection-label {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    padding: 16px;
+    border-radius: 18px;
+    text-align: center;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 1rem;
+    font-weight: 500;
+    z-index: 2;
+    pointer-events: none;
+}
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+}
+button {
+    border: none;
+    padding: 16px 34px;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    box-shadow: 0 18px 40px rgba(99, 102, 241, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s;
+}
+button:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: 0 25px 55px rgba(99, 102, 241, 0.45);
+}
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+.probability-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.probability-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.probability-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.95rem;
+    color: rgba(203, 213, 225, 0.85);
+}
+.probability-bar-bg {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.25);
+    overflow: hidden;
+}
+.probability-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(135deg, #60a5fa, #a855f7);
+    transition: width 0.2s ease-out;
+}
+.emote-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    justify-content: center;
+    padding-top: 12px;
+}
+.emote-card {
+    width: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+.emote-card img {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+}
+.emote-card span {
+    font-size: 0.9rem;
+    color: rgba(226,232,240,0.8);
+}
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+.modal-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+.modal-card {
+    background: rgba(15, 23, 42, 0.92);
+    border-radius: 28px;
+    padding: 32px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 35px 75px rgba(2, 6, 23, 0.85);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.modal-card h3 {
+    font-size: 1.5rem;
+}
+.modal-card p {
+    color: rgba(203, 213, 225, 0.85);
+    line-height: 1.6;
+}
+.modal-card button {
+    width: 100%;
+}
+@media (max-width: 768px) {
+    body {
+        padding: 32px 16px 64px;
+    }
+    .panel {
+        padding: 22px;
+    }
+    .controls {
+        flex-direction: column;
+    }
+}
