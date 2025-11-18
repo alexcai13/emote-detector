@@ -22,7 +22,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1300px;
             width: 100%;
         }
         
@@ -36,7 +36,7 @@
         
         .main-content {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -46,6 +46,8 @@
             border-radius: 15px;
             padding: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
         }
         
         .panel h2 {
@@ -161,6 +163,40 @@
             line-height: 1.6;
         }
         
+        .probability-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .probability-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .probability-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.95em;
+            color: #555;
+        }
+
+        .probability-bar-bg {
+            height: 12px;
+            background: #f0f0f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .probability-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.2s ease-out;
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -196,6 +232,13 @@
             </div>
         </div>
         
+        <div class="panel">
+            <h2>📊 Prediction Scores</h2>
+            <div id="probability-list" class="probability-list">
+                <p style="color:#777;">Start the camera to view live probabilities.</p>
+            </div>
+        </div>
+
         <div class="controls">
             <button id="startBtn" onclick="startCamera()">Start Camera</button>
             <button id="stopBtn" onclick="stopCamera()" disabled>Stop Camera</button>
@@ -204,48 +247,96 @@
         <div class="info">
             <h3>ℹ️ How to Use</h3>
             <p>
-                <strong>1.</strong> Click "Start Camera" to begin<br>
-                <strong>2.</strong> Perform your trained gestures in front of the camera<br>
-                <strong>3.</strong> Watch as your gestures are detected and matched to emojis in real-time!<br>
-                <br>
-                <strong>Note:</strong> This demo runs locally. For full AI detection, you need to run the Python backend (realtime.py).
+                <strong>1.</strong> Run <code>python3 export_onnx.py</code> after training to produce <code>models/expr_resnet18.onnx</code>.<br>
+                <strong>2.</strong> Host this folder (e.g. GitHub Pages) so the browser can load <code>index.html</code> + the ONNX file.<br>
+                <strong>3.</strong> Click "Start Camera" and perform your gestures. All inference runs directly in the browser via ONNX Runtime Web.<br><br>
+                <strong>Note:</strong> No Python backend is needed once the ONNX file is exported.
             </p>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
     <script>
-        let video = document.getElementById('webcam');
-        let statusDiv = document.getElementById('status');
-        let detectionDiv = document.getElementById('detection');
-        let emoteDisplay = document.getElementById('emote-display');
-        let stream = null;
-        
-        // Emote mapping (should match your emote_map.json)
-        const emoteMap = {
-            "67_emote": "emotes/67 emote.png",
-            "goblin_crying": "emotes/Goblin crying emote.png",
-            "wizard_dabbing": "emotes/Wizard dabbing emote.png",
-            "biting_nails": "emotes/biting nails emote.png",
-            "cheering": "emotes/cheering emote.png",
-            "tung_tung_sahur": "emotes/tung tung sahur.png"
+        const video = document.getElementById('webcam');
+        const statusDiv = document.getElementById('status');
+        const detectionDiv = document.getElementById('detection');
+        const emoteDisplay = document.getElementById('emote-display');
+        const probabilityList = document.getElementById('probability-list');
+
+        const appState = {
+            stream: null,
+            session: null,
+            sessionPromise: null,
+            emoteMap: {},
+            modelConfig: null,
+            running: false,
+            loopHandle: null,
+            canvas: document.createElement('canvas'),
+            ctx: null,
+            inferenceIntervalMs: 200
         };
-        
+        appState.ctx = appState.canvas.getContext('2d');
+
+        async function ensureModelLoaded() {
+            if (appState.session) return;
+            if (appState.sessionPromise) {
+                await appState.sessionPromise;
+                return;
+            }
+            statusDiv.textContent = 'Downloading model...';
+            statusDiv.style.background = 'rgba(0, 102, 255, 0.8)';
+            const promise = (async () => {
+                const [configRes, emoteRes] = await Promise.all([
+                    fetch('models/web_model_config.json'),
+                    fetch('emote_map.json')
+                ]);
+                if (!configRes.ok) {
+                    throw new Error('Missing models/web_model_config.json. Run export_onnx.py first.');
+                }
+                if (!emoteRes.ok) {
+                    throw new Error('Could not load emote_map.json');
+                }
+                appState.modelConfig = await configRes.json();
+                appState.emoteMap = await emoteRes.json();
+                appState.canvas.width = appState.modelConfig.img_size;
+                appState.canvas.height = appState.modelConfig.img_size;
+                appState.session = await ort.InferenceSession.create('models/expr_resnet18.onnx', {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                });
+                statusDiv.textContent = 'Model ready • Click start';
+                statusDiv.style.background = 'rgba(0,0,0,0.7)';
+            })();
+            appState.sessionPromise = promise;
+            try {
+                await promise;
+            } catch (err) {
+                console.error(err);
+                statusDiv.textContent = '❌ ' + err.message;
+                statusDiv.style.background = 'rgba(200,0,0,0.8)';
+                throw err;
+            } finally {
+                appState.sessionPromise = null;
+            }
+        }
+
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
+                await ensureModelLoaded();
+                appState.stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
                     } 
                 });
-                video.srcObject = stream;
+                video.srcObject = appState.stream;
                 statusDiv.textContent = '✅ Camera Active';
                 statusDiv.style.background = 'rgba(0,200,0,0.7)';
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('stopBtn').disabled = false;
-                
-                // Simulate detection (replace with actual WebSocket/API calls)
-                simulateDetection();
+                detectionDiv.textContent = 'Warming up...';
+                appState.running = true;
+                runInferenceLoop();
             } catch (err) {
                 console.error('Camera error:', err);
                 statusDiv.textContent = '❌ Camera Error';
@@ -254,53 +345,112 @@
         }
         
         function stopCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                video.srcObject = null;
-                statusDiv.textContent = '⏸️ Camera Stopped';
-                statusDiv.style.background = 'rgba(0,0,0,0.7)';
-                document.getElementById('startBtn').disabled = false;
-                document.getElementById('stopBtn').disabled = true;
-                detectionDiv.textContent = 'No detection';
-                emoteDisplay.innerHTML = '<span style="color: white;">Camera stopped</span>';
+            appState.running = false;
+            if (appState.loopHandle) {
+                clearTimeout(appState.loopHandle);
+                appState.loopHandle = null;
+            }
+            if (appState.stream) {
+                appState.stream.getTracks().forEach(track => track.stop());
+                appState.stream = null;
+            }
+            video.srcObject = null;
+            statusDiv.textContent = '⏸️ Camera Stopped';
+            statusDiv.style.background = 'rgba(0,0,0,0.7)';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            detectionDiv.textContent = 'No detection';
+            emoteDisplay.innerHTML = '<span style="color: white;">Camera stopped</span>';
+            probabilityList.innerHTML = '<p style="color:#777;">Camera stopped.</p>';
+        }
+
+        function preprocessFrame() {
+            const size = appState.modelConfig.img_size;
+            appState.ctx.drawImage(video, 0, 0, size, size);
+            const { data } = appState.ctx.getImageData(0, 0, size, size);
+            const floatData = new Float32Array(3 * size * size);
+            const mean = appState.modelConfig.mean;
+            const std = appState.modelConfig.std;
+            for (let i = 0; i < size * size; i++) {
+                const r = data[i * 4] / 255;
+                const g = data[i * 4 + 1] / 255;
+                const b = data[i * 4 + 2] / 255;
+                floatData[i] = (r - mean[0]) / std[0];
+                floatData[size * size + i] = (g - mean[1]) / std[1];
+                floatData[2 * size * size + i] = (b - mean[2]) / std[2];
+            }
+            return new ort.Tensor('float32', floatData, [1, 3, size, size]);
+        }
+
+        function softmax(logits) {
+            const maxLogit = Math.max(...logits);
+            const exps = logits.map(v => Math.exp(v - maxLogit));
+            const sum = exps.reduce((acc, v) => acc + v, 0);
+            return exps.map(v => v / sum);
+        }
+
+        function formatLabel(label) {
+            return label.replace(/_/g, ' ');
+        }
+
+        function updateProbabilityList(probabilities, topIdx) {
+            probabilityList.innerHTML = '';
+            appState.modelConfig.classes.forEach((label, idx) => {
+                const pct = (probabilities[idx] * 100).toFixed(1);
+                const item = document.createElement('div');
+                item.className = 'probability-item';
+                const header = document.createElement('div');
+                header.className = 'probability-header';
+                header.innerHTML = `<span>${formatLabel(label)}</span><span>${pct}%</span>`;
+                const barBg = document.createElement('div');
+                barBg.className = 'probability-bar-bg';
+                const bar = document.createElement('div');
+                bar.className = 'probability-bar';
+                if (idx === topIdx) {
+                    bar.style.background = 'linear-gradient(135deg, #ff8a00, #e52e71)';
+                }
+                bar.style.width = `${pct}%`;
+                barBg.appendChild(bar);
+                item.appendChild(header);
+                item.appendChild(barBg);
+                probabilityList.appendChild(item);
+            });
+        }
+
+        async function runInferenceLoop() {
+            if (!appState.running || !appState.session) return;
+            if (video.readyState < 2) {
+                appState.loopHandle = setTimeout(runInferenceLoop, appState.inferenceIntervalMs);
+                return;
+            }
+            try {
+                const tensor = preprocessFrame();
+                const results = await appState.session.run({ input: tensor });
+                const logits = Array.from(results.logits.data);
+                const probabilities = softmax(logits);
+                const topIdx = probabilities.indexOf(Math.max(...probabilities));
+                const topLabel = appState.modelConfig.classes[topIdx] || 'unknown';
+                const confidence = (probabilities[topIdx] * 100).toFixed(1);
+                detectionDiv.textContent = `${formatLabel(topLabel)} • ${confidence}%`;
+
+                const emotePath = appState.emoteMap[topLabel];
+                if (emotePath) {
+                    emoteDisplay.innerHTML = `<img src="${emotePath}" alt="${topLabel}">`;
+                } else {
+                    emoteDisplay.innerHTML = `<span style="color: white;">${formatLabel(topLabel)}</span>`;
+                }
+                updateProbabilityList(probabilities, topIdx);
+            } catch (err) {
+                console.error('Inference error:', err);
+                statusDiv.textContent = '❌ Inference error (see console)';
+                statusDiv.style.background = 'rgba(200,0,0,0.8)';
+                stopCamera();
+                return;
+            }
+            if (appState.running) {
+                appState.loopHandle = setTimeout(runInferenceLoop, appState.inferenceIntervalMs);
             }
         }
-        
-        // Simulated detection for demo purposes
-        // Replace this with actual API/WebSocket calls to your Python backend
-        function simulateDetection() {
-            const gestures = Object.keys(emoteMap);
-            let currentIndex = 0;
-            
-            const interval = setInterval(() => {
-                if (!stream) {
-                    clearInterval(interval);
-                    return;
-                }
-                
-                // Simulate random detection
-                const detected = gestures[currentIndex];
-                const confidence = (Math.random() * 0.3 + 0.7).toFixed(2);
-                
-                detectionDiv.textContent = `${detected.replace(/_/g, ' ')} (${confidence})`;
-                
-                // Update emote display
-                const emotePath = emoteMap[detected];
-                emoteDisplay.innerHTML = `<img src="${emotePath}" alt="${detected}">`;
-                
-                currentIndex = (currentIndex + 1) % gestures.length;
-            }, 3000);
-        }
-        
-        // Note: For production, implement WebSocket connection to Python backend:
-        /*
-        const ws = new WebSocket('ws://localhost:8765');
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            detectionDiv.textContent = `${data.gesture} (${data.confidence})`;
-            emoteDisplay.innerHTML = `<img src="${emoteMap[data.gesture]}" alt="${data.gesture}">`;
-        };
-        */
     </script>
 </body>
 </html>

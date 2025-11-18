@@ -17,8 +17,11 @@ python split_data.py
 # 4. Train your model
 python train.py
 
-# 5. Run real-time detection
+# 5. Run real-time detection (desktop)
 python realtime.py
+
+# 6. Export ONNX for the browser demo (after training)
+python export_onnx.py
 ```
 
 ## 📋 What You Need
@@ -63,7 +66,8 @@ imagedetection/
 ├── collect_data.py      # Capture training images
 ├── split_data.py        # Split train/val (80/20)
 ├── train.py             # Train ResNet18 CNN
-├── realtime.py          # Live detection
+├── export_onnx.py       # Convert PyTorch weights → ONNX + web config
+├── realtime.py          # Live detection (OpenCV)
 ├── labels.json          # Gesture classes
 ├── emote_map.json       # Gesture→emoji mapping
 ├── index.html           # Web demo
@@ -74,8 +78,24 @@ imagedetection/
 └── models/             # Trained CNN models
 ```
 
-## 🌐 Web Demo
+## 🌐 Browser Demo & Deployment
 
-Open `index.html` for a demo interface (static simulation).
+`index.html` now runs your gesture model directly in the browser via [ONNX Runtime Web](https://onnxruntime.ai/docs/execution-providers/Web.html)—no Python backend required.
 
-For full live detection, run `realtime.py` locally.
+1. Train the model locally (`python train.py`) and make sure `models/expr_resnet18.pt` exists.
+2. Export the weights + config for the web client:
+   ```bash
+   python export_onnx.py \
+     --ckpt models/expr_resnet18.pt \
+     --onnx models/expr_resnet18.onnx \
+     --config models/web_model_config.json
+   ```
+3. Host the following files on any static host (e.g., GitHub Pages, Netlify, Vercel):
+   - `index.html`
+   - `emote_map.json`
+   - `emotes/` (emoji images)
+   - `models/expr_resnet18.onnx`
+   - `models/web_model_config.json`
+4. Open the hosted page, click **Start Camera**, and the UI will stream webcam frames, run ONNX inference client-side, show probabilities, and render the detected emote.
+
+Tip: re-run `export_onnx.py` whenever you retrain so the web build stays in sync.
