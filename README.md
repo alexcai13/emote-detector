@@ -49,16 +49,6 @@ python export_onnx.py
 **realtime.py:**
 - `Q` - Quit
 
-## 🧠 How It Works
-
-```
-Camera → Face Detection (CNN) → Gesture Recognition (ResNet18 CNN) → Emoji Display
-```
-
-1. OpenCV detects faces in webcam
-2. ResNet18 CNN recognizes your gesture
-3. Matching emoji is displayed
-
 ## 📁 Project Structure
 
 ```
@@ -77,20 +67,3 @@ imagedetection/
 ├── emotes/             # Your emoji images
 └── models/             # Trained CNN models
 ```
-
-## 🌐 Browser Demo & Deployment
-
-### Hosted demo (recommended for viewers)
-- Just open the deployed GitHub Pages/Netlify URL and click **Start Camera**. Everything—model download, webcam capture, inference—runs directly in your browser. No setup required.
-
-### Updating the hosted model (maintainers only)
-1. Train the model locally (`python train.py`) so `models/expr_resnet18.pt` is current.
-2. Run:
-   ```bash
-   python export_onnx.py \
-     --ckpt models/expr_resnet18.pt \
-     --onnx models/expr_resnet18.onnx \
-     --config models/web_model_config.json
-   ```
-3. Deploy/commit the updated `models/expr_resnet18.onnx` and `models/web_model_config.json` along with `index.html`, `emote_map.json`, and `emotes/`.
-4. Reload the hosted page—viewers automatically get the new model.
