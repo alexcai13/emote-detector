@@ -1,4 +1,4 @@
-# 🎭 Emoji Gesture Detection
+# 🎭 Emote Gesture Detection
 
 Train a CNN to detect your gestures and map them to emojis in real-time!
 
@@ -34,7 +34,7 @@ python realtime.py
 - wizard_dabbing
 - biting_nails
 - cheering
-- tung_tung_sahur
+- neutral (idle/relaxed)
 
 ## 🎮 Controls
 

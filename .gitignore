@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+models/*.pth
+models/expr_resnet18.pt
+data/train/
+data/val/

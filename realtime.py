@@ -10,11 +10,7 @@ import torch.nn.functional as F
 MODEL_EXPR_PATH = "models/expr_resnet18.pt"
 EMOTE_MAP_PATH  = "emote_map.json"
 LABELS_PATH     = "labels.json"
-# OpenCV DNN face detector (CNN)
-FACE_PROTO = "models/face/deploy.prototxt"
-FACE_MODEL = "models/face/res10_300x300_ssd_iter_140000.caffemodel"
-
-CONF_THRESH = 0.6
+# Full frame detection (no face detection needed)
 SMOOTH_ALPHA = 0.3  # temporal smoothing
 DISPLAY_SIZE = (720, 450)
 
@@ -44,9 +40,6 @@ preproc = T.Compose([
 # emote map
 with open(EMOTE_MAP_PATH, "r") as f:
     EMOTE_MAP = json.load(f)
-
-# ---------- load face CNN ----------
-net = cv2.dnn.readNetFromCaffe(FACE_PROTO, FACE_MODEL)
 
 # load emote images
 def load_png(path, size):
@@ -85,65 +78,34 @@ cv2.namedWindow('Emote', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('Camera', *DISPLAY_SIZE)
 cv2.resizeWindow('Emote',  *DISPLAY_SIZE)
 
-def detect_faces_dnn(frame_bgr):
-    (h, w) = frame_bgr.shape[:2]
-    blob = cv2.dnn.blobFromImage(cv2.resize(frame_bgr, (300, 300)),
-                                 1.0, (300, 300),
-                                 (104.0, 177.0, 123.0))
-    net.setInput(blob)
-    detections = net.forward()
-    boxes = []
-    for i in range(detections.shape[2]):
-        conf = detections[0,0,i,2]
-        if conf >= CONF_THRESH:
-            box = detections[0,0,i,3:7] * np.array([w, h, w, h])
-            (x1, y1, x2, y2) = box.astype("int")
-            x1, y1 = max(0,x1), max(0,y1)
-            x2, y2 = min(w-1,x2), min(h-1,y2)
-            boxes.append((x1,y1,x2,y2, conf))
-    # return biggest face
-    if not boxes: return None
-    boxes.sort(key=lambda b: (b[2]-b[0])*(b[3]-b[1]), reverse=True)
-    return boxes[0]
-
 while True:
     ok, frame = cap.read()
     if not ok: break
     frame = cv2.flip(frame, 1)
     vis  = frame.copy()
 
-    det = detect_faces_dnn(frame)
     top_label = "neutral"
     top_prob  = 0.0
 
-    if det is not None:
-        x1,y1,x2,y2,_ = det
-        # add a little margin
-        mx = int(0.15*(x2-x1)); my = int(0.20*(y2-y1))
-        x1 = max(0, x1-mx); y1 = max(0, y1-my)
-        x2 = min(frame.shape[1]-1, x2+mx); y2 = min(frame.shape[0]-1, y2+my)
+    # Use full frame instead of face detection
+    inp = preproc(frame).unsqueeze(0).to(device)
+    with torch.no_grad():
+        logits = model(inp)
+        probs = F.softmax(logits, dim=1).cpu().numpy()[0]
 
-        face = frame[y1:y2, x1:x2, :]
-        if face.size > 0:
-            inp = preproc(face).unsqueeze(0).to(device)
-            with torch.no_grad():
-                logits = model(inp)
-                probs = F.softmax(logits, dim=1).cpu().numpy()[0]
+    # smooth
+    if probs_smooth is None:
+        probs_smooth = probs
+    else:
+        probs_smooth = SMOOTH_ALPHA*probs + (1-SMOOTH_ALPHA)*probs_smooth
 
-            # smooth
-            if probs_smooth is None:
-                probs_smooth = probs
-            else:
-                probs_smooth = SMOOTH_ALPHA*probs + (1-SMOOTH_ALPHA)*probs_smooth
+    idx = int(np.argmax(probs_smooth))
+    top_label = classes[idx]
+    top_prob  = float(probs_smooth[idx])
 
-            idx = int(np.argmax(probs_smooth))
-            top_label = classes[idx]
-            top_prob  = float(probs_smooth[idx])
-
-            # draw box
-            cv2.rectangle(vis, (x1,y1), (x2,y2), (0,255,0), 2)
-            txt = f"{top_label}: {top_prob:.2f}"
-            cv2.putText(vis, txt, (x1, max(20,y1-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+    # draw label at top
+    txt = f"{top_label}: {top_prob:.2f}"
+    cv2.putText(vis, txt, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,0), 2)
 
     # load emote for top_label
     emote_path = EMOTE_MAP.get(top_label, None)
