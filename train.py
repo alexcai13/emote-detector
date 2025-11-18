@@ -1,6 +1,5 @@
 # train.py
-import json, os, time, shutil
-from pathlib import Path
+import json, os
 import torch, torch.nn as nn
 import torchvision as tv
 from torchvision import transforms
@@ -9,7 +8,6 @@ from sklearn.metrics import classification_report, f1_score
 from tqdm import tqdm
 from urllib.error import URLError
 
-# -------- config --------
 DATA_DIR = "data"
 TRAIN_DIR = f"{DATA_DIR}/train"
 VAL_DIR   = f"{DATA_DIR}/val"
@@ -22,22 +20,7 @@ LR = 1e-3
 EPOCHS = 20
 IMG_SIZE = 224
 NUM_WORKERS = 4
-FREEZE_BACKBONE = False  # set True if very small dataset
-
-IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".ppm", ".bmp", ".pgm", ".tif", ".tiff", ".webp")
-
-def prune_empty_class_dirs(root):
-    removed = []
-    root_path = Path(root)
-    if not root_path.exists():
-        return removed
-    for child in root_path.iterdir():
-        if not child.is_dir():
-            continue
-        has_images = any(f.suffix.lower() in IMG_EXTENSIONS for f in child.iterdir())
-        if not has_images:
-            shutil.rmtree(child)
-            removed.append(child.name)
+FREEZE_BACKBONE = False 
 
 def build_transforms():
     mean = [0.485, 0.456, 0.406]
@@ -58,46 +41,28 @@ def build_transforms():
     return train_tfms, val_tfms, mean, std
 
 def build_datasets(train_tfms, val_tfms):
-    pruned_train = prune_empty_class_dirs(TRAIN_DIR)
-    pruned_val = prune_empty_class_dirs(VAL_DIR)
-    if pruned_train or pruned_val:
-        msg_parts = []
-        if pruned_train:
-            msg_parts.append(f"train({', '.join(pruned_train)})")
-        if pruned_val:
-            msg_parts.append(f"val({', '.join(pruned_val)})")
-        print("ℹ️  Removed empty class folders:", " & ".join(msg_parts))
-
     train_ds = tv.datasets.ImageFolder(TRAIN_DIR, transform=train_tfms)
     val_ds   = tv.datasets.ImageFolder(VAL_DIR,   transform=val_tfms)
-
-    if len(train_ds.classes) == 0:
-        raise RuntimeError("No training data found in data/train. Collect data and/or run split_data.py first.")
-    if len(val_ds) == 0:
-        raise RuntimeError("Validation set is empty. Run split_data.py so we can evaluate during training.")
-
     return train_ds, val_ds
 
 def build_model(num_classes, device):
     weights_enum = tv.models.ResNet18_Weights.IMAGENET1K_V1
     model = None
     if os.path.exists(LOCAL_PRETRAIN_F):
-        print(f"🔁 Loading pretrained weights from {LOCAL_PRETRAIN_F}")
         state = torch.load(LOCAL_PRETRAIN_F, map_location="cpu")
         model = tv.models.resnet18(weights=None)
         missing, unexpected = model.load_state_dict(state, strict=False)
         if missing or unexpected:
-            print(f"ℹ️  Loaded local weights with missing={len(missing)} unexpected={len(unexpected)} layers.")
+            print(f"Loaded local weights with missing={len(missing)} unexpected={len(unexpected)} layers.")
     if model is None:
         try:
             model = tv.models.resnet18(weights=weights_enum)
         except URLError as err:
-            print(f"⚠️  Could not download pretrained weights ({err}). Falling back to random initialization.")
+            print( f"Could not download pretrained weights ({err}).")
             model = tv.models.resnet18(weights=None)
     if FREEZE_BACKBONE:
         for p in model.parameters():
             p.requires_grad = False
-        # unfreeze last block
         for p in model.layer4.parameters():
             p.requires_grad = True
 
@@ -136,13 +101,11 @@ def main():
     classes = train_ds.classes
     missing = [c for c in declared_classes if c not in classes]
     if missing:
-        print("⚠️  Skipping classes without training data:", ", ".join(missing))
+        print("Skipping classes without training data:", ", ".join(missing))
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     effective_workers = NUM_WORKERS
     if device == "cpu" and NUM_WORKERS > 0:
-        # Mac/Windows default start method = spawn, which needs guarded main.
-        # Drop to single-process loading if user hits spawn issues.
         effective_workers = 0
 
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=effective_workers)
@@ -175,7 +138,7 @@ def main():
             report_txt = classification_report(y_true, y_pred, target_names=classes, zero_division=0)
             print(report_txt)
         else:
-            report_txt = "No validation predictions to report."
+            report_txt = "No validation predictions rn"
         print(f"\nVal loss: {val_loss:.4f} | Macro-F1: {macro_f1:.4f}")
         if macro_f1 > best_val_f1:
             best_val_f1 = macro_f1
@@ -187,11 +150,10 @@ def main():
                 "std": std
             }
             torch.save(best_state, MODEL_OUT)
-            print(f"✅ Saved best model to {MODEL_OUT}")
             best_report_txt = report_txt
 
     print("\nBest validation report:")
-    print(best_report_txt or "No validation data available.")
+    print(best_report_txt)
     print(f"Best Macro-F1: {best_val_f1:.4f}")
 
 if __name__ == "__main__":

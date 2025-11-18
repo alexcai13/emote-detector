@@ -37,7 +37,7 @@ python export_onnx.py
 - wizard_dabbing
 - biting_nails
 - cheering
-- neutral (idle/relaxed)
+- neutral 
 
 ## 🎮 Controls
 

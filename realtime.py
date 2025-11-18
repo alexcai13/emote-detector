@@ -1,4 +1,4 @@
-# realtime_emotes.py
+
 import os, json
 import numpy as np
 import cv2
@@ -6,21 +6,19 @@ import torch
 import torchvision as tv
 import torch.nn.functional as F
 
-# ---------- config ----------
+
 MODEL_EXPR_PATH = "models/expr_resnet18.pt"
 EMOTE_MAP_PATH  = "emote_map.json"
 LABELS_PATH     = "labels.json"
-# Full frame detection (no face detection needed)
-SMOOTH_ALPHA = 0.3  # temporal smoothing
+
+SMOOTH_ALPHA = 0.3  
 DISPLAY_SIZE = (720, 450)
 
-# ---------- load expression model ----------
 ckpt = torch.load(MODEL_EXPR_PATH, map_location="cpu")
 classes = ckpt["classes"]
 img_size = ckpt["img_size"]
 mean, std = ckpt["mean"], ckpt["std"]
 
-# build same model arch
 model = tv.models.resnet18(weights=None)
 model.fc = torch.nn.Linear(model.fc.in_features, len(classes))
 model.load_state_dict(ckpt["model"])
@@ -28,7 +26,7 @@ model.eval()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model.to(device)
 
-# preproc
+
 import torchvision.transforms as T
 preproc = T.Compose([
     T.ToPILImage(),
@@ -37,11 +35,10 @@ preproc = T.Compose([
     T.Normalize(mean, std)
 ])
 
-# emote map
+
 with open(EMOTE_MAP_PATH, "r") as f:
     EMOTE_MAP = json.load(f)
 
-# load emote images
 def load_png(path, size):
     if not os.path.exists(path):
         return None
@@ -52,12 +49,11 @@ def load_png(path, size):
 # keep a cache
 emote_cache = {}
 
-# blending function (supports RGBA)
+# blending function 
 def overlay_rgba(bg_bgr, fg_rgba):
     if fg_rgba is None:
         return bg_bgr
     if fg_rgba.shape[2] == 3:
-        # no alpha—just place
         return fg_rgba
     fg_rgb = fg_rgba[:,:,:3]
     alpha  = fg_rgba[:,:,3:4].astype(np.float32)/255.0
@@ -65,7 +61,6 @@ def overlay_rgba(bg_bgr, fg_rgba):
     out = alpha*fg_rgb.astype(np.float32) + (1-alpha)*bg_rgb
     return out.astype(np.uint8)
 
-# temporal smoothing
 probs_smooth = None
 
 # webcam
@@ -87,7 +82,6 @@ while True:
     top_label = "neutral"
     top_prob  = 0.0
 
-    # Use full frame instead of face detection
     inp = preproc(frame).unsqueeze(0).to(device)
     with torch.no_grad():
         logits = model(inp)
@@ -115,7 +109,6 @@ while True:
             emote_cache[emote_path] = load_png(emote_path, DISPLAY_SIZE)
         emote_img = emote_cache[emote_path]
         if emote_img is not None:
-            # if RGBA, composite over black bg
             emote_view = overlay_rgba(emote_view, emote_img)
 
     cam_view = cv2.resize(vis, DISPLAY_SIZE)

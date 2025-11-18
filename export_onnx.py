@@ -1,11 +1,3 @@
-"""
-Export the trained PyTorch model to ONNX for use in the web demo.
-
-Usage:
-    python3 export_onnx.py --ckpt models/expr_resnet18.pt \
-                           --onnx models/expr_resnet18.onnx \
-                           --config models/web_model_config.json
-"""
 import argparse
 import json
 from pathlib import Path
