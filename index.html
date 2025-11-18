@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Emoji Gesture Detection</title>
+    <title>Emote Detector</title>
     <style>
         *, *::before, *::after {
             margin: 0;
@@ -210,7 +210,6 @@
                 <div class="panel-title">Camera View</div>
                 <div id="video-container">
                     <video id="webcam" autoplay playsinline></video>
-                    <div class="detection-label" id="detection">Awaiting camera</div>
                 </div>
             </div>
 
@@ -218,6 +217,7 @@
                 <h2>Emoji Mirror</h2>
                 <div class="panel-title">Detected Emote</div>
                 <div id="emote-container">
+                    <div class="detection-label" id="detection">Awaiting camera</div>
                     <div id="emote-display">
                         <span style="color: rgba(226,232,240,0.8);">Waiting for detection…</span>
                     </div>
@@ -392,6 +392,7 @@
         }
 
         function formatLabel(label) {
+            if (label === '67_emote') return '67';
             return label.replace(/_/g, ' ');
         }
 
